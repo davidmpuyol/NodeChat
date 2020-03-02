@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="https://kit.fontawesome.com/341985eb2a.js" crossorigin="anonymous"></script>
+    <script src="/siofu/client.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+<script>
+  $(function () {
+    var socket = io();
+    var uploader = new SocketIOFileUpload(socket);
+    uploader.listenOnInput(document.getElementById("archivo"));
+    var usuario = prompt("Introduce tu nick");
+    socket.emit('sesionIniciada', {"user" : usuario, "id" : socket.id});
+    function alertaEscribiendo(nombre){
+      let alerta = $("<div>").addClass("alert alert-success").attr("role","alert").html(nombre+" está escribiendo");
+      $("body").append(alerta);
+      setTimeout(function(){
+        $(".alert").remove();
+      },1000);
+    }
+    function maquetaUsuario(usuario){
+      let elemento = $("<li>").addClass("list-group-item usuario pb-2 d-flex flex-row").attr("id",usuario.id);
+      $(elemento).html('<div class="col-3">'+
+        '<img class="img-fluid rounded w-100 h-100" src="/images/iconousuario.png">'
+        + '</div><div class="col-9"><h2>' + usuario.user + '</h2></div>');
+      $("#listaContactos").append(elemento);
+    }
+    $('#formularioSubir').submit(function(e){
+      e.preventDefault(); // prevents page reloading
+      let mensaje = $('<li>').text($('#m').val()).addClass("mio list-group-item");
+      $('#messages').append(mensaje);
+      socket.emit('chat message', {message: $('#m').val(), nick : usuario});
+      $('#m').val('');
+      return false;
+    });
+    socket.on('chat message', function(msg){
+        mensaje = $('<li>').text(msg.author+": "+msg.message).addClass("list-group-item mensaje");
+        $('#messages').append(mensaje);
+    });
+    $('#m').keypress(function(){
+      socket.emit('escribiendo',{user: usuario});
+    });
+    socket.on('escribiendo',function(datos){
+      if($(".alert").length == 0){
+        alertaEscribiendo(datos.usuario);
+      }
+    });
+    socket.on('usuarios',function(usuarios){
+      for(let i = 0; i<usuarios.length; i++){
+        console.log(usuarios);
+        maquetaUsuario(usuarios[i]);
+      }
+    });
+    socket.on('usuarioConectado',function(usuario){
+      maquetaUsuario(usuario);
+    })
+    socket.on('usuarioDesconectado', function(id){
+      $("#"+id).remove();
+    })
+    socket.on('mensajesAnteriores',(mensajes) =>{
+      mensajes.forEach((msg)=>{
+        mensaje = $('<li>').text(msg.author+": "+msg.message).addClass("list-group-item mensaje");
+        $('#messages').append(mensaje);
+      })
+    })
+    socket.on('progreso', (event)=>{
+      $('.progress-bar').css('width',(event.file.bytesLoaded / event.file.size)*100+"%")
+    });
+    socket.on('inicioSubida', ()=>{
+      $('.progress-bar').css('width',"0%");
+      $('.progress').css('display',"block");
+    });
+    socket.on('finSubida',()=>{
+      $('.progress').css('display',"none");
+    })
+    socket.on('archivoEnviado',(event)=>{
+      mensaje = $('<li>').html('Archivo subido: <a href="'+event.file.pathName+'" download>'+event.file.name+'</a>').addClass("list-group-item mensaje");
+      $('#messages').append(mensaje);
+      console.log(event);
+    })
+  });
+</script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      .mio{
+          text-align: right;
+      }
+      #mensajes, #contactos{
+        height:100vh;
+        overflow:auto;
+      }
+      #contactos{
+        min-width: 300px;
+        padding:0;
+      }
+      .formulario{
+        position:absolute;
+        bottom: 0;
+        width:100%;
+      }
+      .alert{
+        position:absolute;
+        margin: 0 auto;
+        top: 0;
+      }
+      li{
+        height: 40px;
+        list-style-type:none;
+      }
+      .usuario{
+        text-align:right;
+        height: 50px;
+        width:100%;
+        display:flex;
+        flex-flow:row-reverse nowrap;
+        align-items:center;
+        cursor:pointer;
+      }
+      #archivo{
+        position: absolute;
+        opacity: 0;
+        overflow: hidden;
+        z-index: 1000;
+        cursor:pointer;
+      }
+      .progress{
+        display:none;
+        width: 400px;
+        top:0;
+        left:0;
+        z-index: 50;
+      }
+
+      .progress-bar{
+        width:0%;
+      }
+      .div-progreso{
+        position:absolute;
+        width:100%;
+        height: 100%;
+        display:flex;
+        flex-flow: column nowrap;
+        justify-content: center;
+        align-items: center;
+      }
+      .card-body{
+        padding:0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="div-progreso">
+      <div class="progress">
+        <div class="progress-bar bg-success h-100" role="progressbar" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+    </div>
+    <div class="m-0">
+      <div class="row m-0 p-1">
+        <div class="col-3 bg-secondary pt-2" id="contactos">
+          <div class="card cardContactos">
+            <div class="card-img-top">
+              <p></p>
+            </div>
+            <div class="card-body" id="listaContactos">
+
+            </div>
+          </div>
+        </div>
+        <div class="col-9 p-0 container-fluid" id="mensajes">
+            <ul id="messages" class="list-group list-group-flush"></ul>
+              <div class="row formulario">
+                <div class="col-8">
+                  <input id="m" class="form-control form-control-lg w-100" autocomplete="off" />
+                </div>
+                <div class="col-2">
+                  <input type="file" class="w-100 h-100" id="archivo" value="adjuntar">
+                    <button class="w-100 btn btn-lg btn-success">Adjuntar</button>
+                </div>
+                  <div class="col-2">
+                    <form id="formularioEnviar" class="formulario pl-2" action="">
+                      <button class="btn btn-lg btn-danger w-100">Send</button>
+                  </form>
+                  </div>
+              </div>
+          </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+  </body>
+</html>
